@@ -918,3 +918,176 @@ Proof.
   exists tgt_prog; split; auto. exists interm_prog; auto.
 Qed.
 
+
+(** Lemmata to invert the match relation and similar properties. *)
+
+Section INVERT_MATCH.
+
+(** Relating `transf_globdefs` with `match_ident_globdef` *)
+
+Lemma recover_prog_defs_from_match_partial:
+  forall {F1 F2 V: Type} {LP: Linker (program F1 V)}
+  (p: program F1 V) (transf: F1 -> res F2) (defs1: list (ident * globdef F1 V)) (defs2: list (ident * globdef F2 V)),
+  list_forall2 (match_ident_globdef (fun (_: program F1 V) f tf => transf f = OK tf) eq p) defs1 defs2 ->
+  OK defs2 = transf_globdefs (fun (_: ident) f => transf f) (fun (_ : ident) x => OK x) defs1.
+Proof.
+  intros until defs1. induction defs1; intros. inv H. auto.
+  inv H. apply IHdefs1 in H4. simpl. inv H2.
+  destruct a, g, b1; simpl in *; inv H0.
+  * rewrite H3. unfold bind. now rewrite <- H4.
+  * rewrite <- H4. simpl. now inv H2.
+Qed.
+
+Lemma recover_prog_defs_from_match_total:
+  forall {F1 F2 V: Type} {LP: Linker (program F1 V)}
+  (p: program F1 V) (transf: F1 -> F2) (defs1: list (ident * globdef F1 V)) (defs2: list (ident * globdef F2 V)),
+  list_forall2 (match_ident_globdef (fun (_: program F1 V) f tf => tf = transf f) eq p) defs1 defs2 ->
+  defs2 = map (transform_program_globdef transf) defs1.
+Proof.
+  intros until defs1. induction defs1; intros. inv H. auto.
+  inv H. apply IHdefs1 in H4. subst. inv H2. destruct a, b1. simpl in *. inv H0. auto. inv H1. auto.
+Qed.
+
+Lemma match_globdef_partial_from_prog_defs:
+  forall {F1 F2 V: Type} {LP: Linker (program F1 V)}
+  (p: program F1 V) (transf: F1 -> res F2) (defs1: list (ident * globdef F1 V)) (defs2: list (ident * globdef F2 V)),
+  OK defs2 = transf_globdefs (fun (_: ident) f => transf f) (fun (_ : ident) x => OK x) defs1 ->
+  list_forall2 (match_ident_globdef (fun (_: program F1 V) f tf => transf f = OK tf) eq p) defs1 defs2.
+Proof.
+  intros until defs1. induction defs1; intros. inv H. constructor.
+  inv H. destruct a, g.
+  * destruct (transf f) eqn:?; try easy. destruct transf_globdefs eqn:? in H1; try easy. simpl in H1. injection H1; intros; subst.
+    symmetry in Heqr0. eapply IHdefs1 in Heqr0. repeat (econstructor; eauto). apply linkorder_refl.
+  * destruct transf_globdefs eqn:? in H1; try easy. simpl in H1. injection H1; intros; subst.
+    symmetry in Heqr. apply IHdefs1 in Heqr. repeat (econstructor; eauto). now destruct v.
+Qed.
+
+Lemma match_globdef_total_from_prog_defs:
+  forall {F1 F2 V: Type} {LP: Linker (program F1 V)}
+  (p: program F1 V) (transf: F1 ->  F2) (defs: list (ident * globdef F1 V)),
+  list_forall2 (match_ident_globdef (fun (_: program F1 V) f tf => tf = transf f) eq p) defs (map (transform_program_globdef transf) defs).
+Proof.
+  intros. induction defs; repeat constructor. simpl. now destruct a, g.
+  unfold transform_program_globdef. destruct a, g; econstructor; eauto. apply linkorder_refl. now destruct v.
+  apply IHdefs.
+Qed.
+
+(** Getting the transform back from `match_program` *)
+
+Lemma invert_match_program_total: forall {F1 F2 V: Type} {LF1: Linker F1} {LV: Linker V} {LP: Linker (AST.program F1 V)}
+  (p: AST.program F1 V) (tp: AST.program F2 V) (transl_fundef: F1 -> F2),
+  match_program (fun cu f tf => tf = transl_fundef f) eq p tp ->
+  tp = transform_program transl_fundef p.
+Proof.
+  intros. destruct H as [? []]. unfold transform_program, transform_program_globdef.
+  apply recover_prog_defs_from_match_total in H. destruct tp. simpl in *. now subst.
+Qed.
+
+Lemma invert_match_program_partial: forall {F1 F2 V: Type} {LF1: Linker F1} {LV: Linker V} {LP: Linker (AST.program F1 V)}
+  (p: AST.program F1 V) (tp: AST.program F2 V) (transl_fundef: F1 -> res F2),
+  match_program (fun cu f tf => transl_fundef f = OK tf) eq p tp ->
+  OK tp = transform_partial_program transl_fundef p.
+Proof.
+  intros. destruct H as [? []]. unfold transform_partial_program, transform_partial_program2.
+  apply recover_prog_defs_from_match_partial in H. rewrite <- H.
+  destruct tp. simpl in *. now subst.
+Qed.
+
+End INVERT_MATCH.
+
+
+(** Lemmata to commute transforming at function level and at program level. *)
+
+Require Import Axioms.
+
+Section TRANSF_COMMUTATIVE.
+
+Definition apply_total (A B: Type) (x: res A) (f: A -> B) : res B :=
+  match x with Error msg => Error msg | OK x1 => OK (f x1) end.
+
+Definition apply_partial (A B: Type)
+                         (x: res A) (f: A -> res B) : res B :=
+  match x with Error msg => Error msg | OK x1 => f x1 end.
+
+Notation "a @@@ b" :=
+   (apply_partial a b) (at level 50, left associativity).
+Notation "a @@ b" :=
+   (apply_total a b) (at level 50, left associativity).
+
+Notation "f ∘ g" := (fun x => f (g x)) (at level 50, left associativity).
+
+Context {V: Type}.
+
+Lemma transf_globdefs_id_partial:
+  forall {F1 F2: Type} (p: program F1 V),
+  transf_globdefs (fun _ f => OK f) (fun _ v => OK v) (prog_defs p) = OK (prog_defs p).
+Proof.
+  intros. induction (prog_defs p). auto.
+  simpl. rewrite IHl. unfold bind. destruct a, g. auto. now destruct v. 
+Qed.
+
+Lemma transf_globdefs_id_total: forall A V, @transform_program_globdef A A V id = id.
+Proof.
+  intros. apply functional_extensionality. intros. now destruct x, g.
+Qed.
+
+Lemma transf_program_id_total: forall F V (p: AST.program F V), transform_program id p = p.
+Proof.
+  intros. unfold transform_program. destruct p. simpl. f_equal. rewrite transf_globdefs_id_total. apply map_id.
+Qed.
+
+Lemma transform_partial_function_id:
+  forall {F1: Type} (p: program F1 V),
+  transform_partial_program (@OK F1) p = OK p.
+Proof.
+  intros. unfold transform_partial_program, transform_partial_program2, bind.
+  erewrite transf_globdefs_id_partial. now destruct p. Unshelve. exact F1.
+Qed.
+
+Lemma transf_globdefs_partial_total_comm:
+  forall {F1 F2 F3: Type}
+  (transf1: F1 -> res F2) (transf2: F2 -> F3) (defs: list (ident * globdef F1 V)),
+  transf_globdefs (fun (_ : ident) (f : F1) => transf1 f @@ transf2) (fun _ (v: V) => OK v) defs =
+  transf_globdefs (fun (_ : ident) (f : F1) => transf1 f) (fun _ (v: V) => OK v) defs @@ map (transform_program_globdef transf2).
+Proof.
+  intros. induction defs. auto.
+  simpl. rewrite IHdefs. destruct a, g. destruct (transf1 f); auto.
+  unfold bind. now destruct (transf_globdefs _ _ defs) in |- *.
+  unfold bind. now destruct (transf_globdefs _ _ defs) in |- *.
+Qed.
+
+Lemma transf_globdefs_total_total_comm:
+  forall {F1 F2 F3: Type}
+  (transf1: F1 -> F2) (transf2: F2 -> F3) (defs: list (ident * globdef F1 V)),
+  map (transform_program_globdef (fun f => transf2 (transf1 f))) defs =
+  map (transform_program_globdef transf2) (map (transform_program_globdef transf1) defs).
+Proof.
+  intros. induction defs. auto.
+  simpl. rewrite IHdefs. f_equal. now destruct a, g.
+Qed.
+
+Lemma transf_program_partial_total_comm:
+  forall {F1 F2 F3: Type}
+  (p: program F1 V) (transf1: F1 -> res F2) (transf2: F2 -> F3),
+  OK p @@@ transform_partial_program transf1 @@ transform_program transf2 = transform_partial_program (fun f => OK f @@@ transf1 @@ transf2) p.
+Proof.
+  intros. unfold transform_program, transform_partial_program, transform_partial_program2, bind. simpl.
+  rewrite transf_globdefs_partial_total_comm. now destruct (transf_globdefs _ _ _).
+Qed.
+
+Lemma transf_program_total_total_comm:
+  forall {V F1 F2 F3: Type} (p: AST.program F1 V) (transf1: F1 -> F2) (transf2: F2 -> F3),
+  transform_program transf2 (transform_program transf1 p) = transform_program (transf2 ∘ transf1) p.
+Proof.
+  intros. unfold transform_program. simpl. rewrite map_map. erewrite map_ext; eauto.
+  intros. unfold transform_program_globdef. now destruct a, g.
+Qed.
+
+Lemma transf_program_total_total_comm_ext:
+  forall {V F1 F2 F3: Type} (transf1: F1 -> F2) (transf2: F2 -> F3),
+  (fun (p: AST.program F1 V) => transform_program transf2 (transform_program transf1 p)) = transform_program (transf2 ∘ transf1).
+Proof.
+  intros. apply extensionality. intros. apply transf_program_total_total_comm.
+Qed.
+
+End TRANSF_COMMUTATIVE.

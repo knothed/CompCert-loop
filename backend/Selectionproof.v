@@ -430,8 +430,8 @@ Proof.
   unfold classify_call; intros.
   destruct (expr_is_addrof_ident a) as [id|] eqn:EA; auto.
   exploit expr_is_addrof_ident_correct; eauto. intros EQ; subst a.
-  inv H0. inv H3. unfold Genv.symbol_address in *.
-  destruct (Genv.find_symbol ge id) as [b|] eqn:FS; try discriminate.
+  inv H0. inv H3. unfold Senv.symbol_address in *.
+  destruct (Senv.find_symbol ge id) as [b|] eqn:FS; try discriminate.
   rewrite Genv.find_funct_find_funct_ptr in H1.
   assert (DFL: exists b1, Genv.find_symbol ge id = Some b1 /\ Vptr b Ptrofs.zero = Vptr b1 Ptrofs.zero) by (exists b; auto).
   unfold globdef; destruct (prog_defmap unit)!id as [[[f|ef] |gv] |] eqn:G; auto.
@@ -439,6 +439,7 @@ Proof.
   destruct (prog_defmap_linkorder _ _ _ _ H G) as (gd & P & Q).
   inv Q. inv H2.
 - apply Genv.find_def_symbol in P. destruct P as (b' & X & Y). fold ge in X, Y.
+  unfold Genv.to_senv in FS; simpl in FS.
   rewrite <- Genv.find_funct_ptr_iff in Y. congruence.
 - simpl in INLINE. discriminate.
 Qed.
@@ -740,7 +741,7 @@ Proof.
   exists (Vfloat f); split; auto. econstructor. constructor. auto.
   exists (Vsingle f); split; auto. econstructor. constructor. auto.
   exists (Vlong i); split; auto. apply eval_longconst.
-  unfold Genv.symbol_address; rewrite <- symbols_preserved; fold (Genv.symbol_address tge i i0). apply eval_addrsymbol.
+  unfold Senv.symbol_address; unfold Genv.to_senv; simpl; rewrite <- symbols_preserved; fold (Genv.symbol_address tge i i0). apply eval_addrsymbol.
   apply eval_addrstack.
   (* Eunop *)
   exploit IHeval_expr; eauto. intros [v1' [A B]].

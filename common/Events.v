@@ -108,8 +108,19 @@ Proof. intros. unfold Eapp, trace. apply app_ass. Qed.
 Lemma Eapp_E0_inv: forall t1 t2, t1 ** t2 = E0 -> t1 = E0 /\ t2 = E0.
 Proof (@app_eq_nil event).
 
+Lemma Eapp_right_inv: forall t1 t2,
+  t1 = t1 ** t2 -> t2 = E0.
+Proof.
+  intros. unfold Eapp in H. induction t1. auto. now injection H.
+Qed.
+
 Lemma E0_left_inf: forall T, E0 *** T = T.
 Proof. auto. Qed.
+
+Lemma Econsinf_assoc: forall e t T, (e::t) *** T = Econsinf e (t***T).
+Proof.
+  auto.
+Qed.
 
 Lemma Eappinf_assoc: forall t1 t2 T, (t1 ** t2) *** T = t1 *** (t2 *** T).
 Proof.
@@ -1566,6 +1577,28 @@ Definition external_call_mem_inject_gen ef := ec_mem_inject (external_call_spec 
 Definition external_call_trace_length ef := ec_trace_length (external_call_spec ef).
 Definition external_call_receptive ef := ec_receptive (external_call_spec ef).
 Definition external_call_determ ef := ec_determ (external_call_spec ef).
+
+(** Going wrong of an external call. *)
+
+Definition external_call_goes_wrong ef ge args m :=
+  ~ exists t m' res, external_call ef ge args m t res m'.
+
+Definition external_call_goes_wrong_preserved: forall ef ge1 ge2 vargs m,
+  Senv.equiv ge1 ge2 ->
+  external_call_goes_wrong ef ge1 vargs m ->
+  external_call_goes_wrong ef ge2 vargs m.
+Proof.
+  intros. intros [t [m' [res]]]. apply external_call_symbols_preserved with (ge2:=ge1) in H1; eauto.
+  now apply Senv.equiv_sym.
+Qed.
+
+Lemma external_call_wrong_elim: forall ef ge args m t v m',
+  external_call_goes_wrong ef ge args m ->
+  external_call ef ge args m t v m' ->
+  False.
+Proof.
+  intros. apply H. do 3 eexists. apply H0.
+Qed.
 
 (** Corollary of [external_call_well_typed_gen]. *)
 

@@ -1443,8 +1443,8 @@ Proof.
   (* global *)
   exploit match_callstack_match_globalenvs; eauto. intros [bnd MG]. inv MG.
   exists (Vptr b Ptrofs.zero); split.
-  constructor. simpl. unfold Genv.symbol_address. 
-  rewrite symbols_preserved. rewrite H2. auto.
+  constructor. simpl. unfold Senv.symbol_address.
+  unfold Genv.to_senv; simpl. rewrite symbols_preserved. rewrite H2. auto.
   econstructor; eauto.
 Qed.
 

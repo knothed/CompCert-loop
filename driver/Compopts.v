@@ -39,6 +39,9 @@ Parameter optim_CSE: unit -> bool.
 (** Flag -fredundancy.  For dead code elimination. *)
 Parameter optim_redundancy: unit -> bool.
 
+(** Flag -floop.  For loop optimizations. *)
+Parameter optim_loop: unit -> bool.
+
 (** Flag -fthumb.  For the ARM back-end. *)
 Parameter thumb: unit -> bool.
 

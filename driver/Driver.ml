@@ -47,6 +47,7 @@ let compile_c_file sourcename ifile ofile =
   set_dest PrintCsyntax.destination option_dcmedium ".compcert.c";
   set_dest PrintClight.destination option_dclight ".light.c";
   set_dest PrintCminor.destination option_dcminor ".cm";
+  set_dest PrintCminLoop.destination option_dcminor ".cml";
   set_dest PrintRTL.destination option_drtl ".rtl";
   set_dest Regalloc.destination_alloctrace option_dalloctrace ".alloctrace";
   set_dest PrintLTL.destination option_dltl ".ltl";
@@ -56,8 +57,8 @@ let compile_c_file sourcename ifile ofile =
   let csyntax = parse_c_file sourcename ifile in
   (* Convert to Asm *)
   let asm =
-    match Compiler.apply_partial
-               (Compiler.transf_c_program csyntax)
+    match CompilerSmallstep.apply_partial
+               (Compiler.compiler csyntax)
                Asmexpand.expand_program with
     | Errors.OK asm ->
         asm
@@ -195,6 +196,8 @@ Processing options:
                    (<n>=0: none, <n>=1: limited, <n>=2: full; default is full)
   -fcse          Perform common subexpression elimination [on]
   -fredundancy   Perform redundancy elimination [on]
+  -floop         Perform some loop optimizations; requires the program
+                   to be free of goto statements [off]
   -finline       Perform inlining of functions [on]
   -finline-functions-called-once Integrate functions only required by their
                  single caller [on]
@@ -249,7 +252,7 @@ let dump_mnemonics destfile =
 
 let optimization_options = [
   option_ftailcalls; option_fifconversion; option_fconstprop; option_fcse;
-  option_fredundancy; option_finline; option_finline_functions_called_once;
+  option_fredundancy; option_floop; option_finline; option_finline_functions_called_once;
 ]
 
 let set_all opts () = List.iter (fun r -> r := true) opts
@@ -366,6 +369,7 @@ let cmdline_actions =
   @ f_opt "const-prop" option_fconstprop
   @ f_opt "cse" option_fcse
   @ f_opt "redundancy" option_fredundancy
+  @ f_opt "loop" option_floop
   @ f_opt "inline" option_finline
   @ f_opt "inline-functions-called-once" option_finline_functions_called_once
 (* Code generation options *)

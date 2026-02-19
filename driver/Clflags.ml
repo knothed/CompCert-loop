@@ -27,6 +27,7 @@ let option_ftailcalls = ref true
 let option_fconstprop = ref true
 let option_fcse = ref true
 let option_fredundancy = ref true
+let option_floop = ref false
 let option_fifconversion = ref true
 let option_Obranchless = ref false
 let option_falignfunctions = ref (None: int option)

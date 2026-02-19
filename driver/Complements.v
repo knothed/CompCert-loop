@@ -14,13 +14,14 @@
 
 Require Import Classical.
 Require Import Coqlib Errors.
-Require Import AST Linking Events Smallstep Behaviors.
+Require Import AST Linking Events Smallstep Bigstep Semantics Behaviors SmallstepBehaviors SemanticsSmallBig.
 Require Import Csyntax Csem Cstrategy Asm.
-Require Import Compiler.
+Require Import CompilerSmallstep Compiler.
 
 (** * Preservation of whole-program behaviors *)
 
-(** From the simulation diagrams proved in file [Compiler]. it follows that
+(** From the smallstep and bigstep preservation proved in files
+  [CompilerSmallstep.v] and [Compiler.v], it follows that
   whole-program observable behaviors are preserved in the following sense.
   First, every behavior of the generated assembly code is matched by
   a behavior of the source C code.  The behavior [beh] of the assembly
@@ -28,88 +29,95 @@ Require Import Compiler.
   or ``improves upon'' [beh']  by replacing a ``going wrong'' behavior
   with a more defined behavior. *)
 
-Theorem transf_c_program_preservation:
-  forall p tp beh,
-  transf_c_program p = OK tp ->
-  program_behaves (Asm.semantics tp) beh ->
-  exists beh', program_behaves (Csem.semantics p) beh' /\ behavior_improves beh' beh.
-Proof.
-  intros. eapply backward_simulation_behavior_improves; eauto.
-  apply transf_c_program_correct; auto.
-Qed.
+Theorem compiler_backward_preservation: forall p tp,
+  compiler p = OK tp ->
+  backward_preservation (Csem.semantics p) (Asm.semantics tp).
+Proof compiler_backward_preservation.
 
 (** As a corollary, if the source C code cannot go wrong, i.e. is free of
   undefined behaviors, the behavior of the generated assembly code is
   one of the possible behaviors of the source C code. *)
 
-Theorem transf_c_program_is_refinement:
+Theorem compiler_is_refinement:
   forall p tp,
-  transf_c_program p = OK tp ->
+  compiler p = OK tp ->
   (forall beh, program_behaves (Csem.semantics p) beh -> not_wrong beh) ->
   (forall beh, program_behaves (Asm.semantics tp) beh -> program_behaves (Csem.semantics p) beh).
 Proof.
-  intros. eapply backward_simulation_same_safe_behavior; eauto.
-  apply transf_c_program_correct; auto.
+  intros. eapply compiler_backward_preservation in H1 as [b []]; eauto.
+  destruct H2 as [|[t []]]. now subst. apply H0 in H1. now subst.
 Qed.
 
 (** If we consider the C evaluation strategy implemented by the compiler,
   we get stronger preservation results. *)
-
-Theorem transf_cstrategy_program_preservation:
+  
+Lemma cstrategy_to_cminor_preservation:
   forall p tp,
-  transf_c_program p = OK tp ->
-  (forall beh, program_behaves (Cstrategy.semantics p) beh ->
-     exists beh', program_behaves (Asm.semantics tp) beh' /\ behavior_improves beh beh')
-/\(forall beh, program_behaves (Asm.semantics tp) beh ->
-     exists beh', program_behaves (Cstrategy.semantics p) beh' /\ behavior_improves beh' beh)
-/\(forall beh, not_wrong beh ->
-     program_behaves (Cstrategy.semantics p) beh -> program_behaves (Asm.semantics tp) beh)
-/\(forall beh,
-     (forall beh', program_behaves (Cstrategy.semantics p) beh' -> not_wrong beh') ->
-     program_behaves (Asm.semantics tp) beh ->
-     program_behaves (Cstrategy.semantics p) beh).
+  transf_c_to_cminor p = OK tp ->
+  forward_preservation (Cstrategy.semantics p) (Cminor.semantics tp) /\
+  backward_preservation (Cstrategy.semantics p) (Cminor.semantics tp).
 Proof.
-  assert (WBT: forall p, well_behaved_traces (Cstrategy.semantics p)).
-    intros. eapply ssr_well_behaved. apply Cstrategy.semantics_strongly_receptive.
   intros.
-  assert (MATCH: match_prog p tp) by (apply transf_c_program_match; auto).
-  intuition auto.
-  eapply forward_simulation_behavior_improves; eauto.
-    apply (proj1 (cstrategy_semantic_preservation _ _ MATCH)).
-  exploit backward_simulation_behavior_improves.
-    apply (proj2 (cstrategy_semantic_preservation _ _ MATCH)).
-    eauto.
-  intros [beh1 [A B]]. exists beh1; split; auto. rewrite atomic_behaviors; auto.
-  eapply forward_simulation_same_safe_behavior; eauto.
-    apply (proj1 (cstrategy_semantic_preservation _ _ MATCH)).
-  exploit backward_simulation_same_safe_behavior.
-    apply (proj2 (cstrategy_semantic_preservation _ _ MATCH)).
-    intros. rewrite <- atomic_behaviors in H2; eauto. eauto.
-    intros. rewrite atomic_behaviors; auto.
+  assert (WBT: forall p, well_behaved_traces (Cstrategy.semantics p)).
+    { intros. eapply ssr_well_behaved. apply Cstrategy.semantics_strongly_receptive. }
+  apply transf_c_to_cminor_match, cstrategy_to_cminor_semantic_preservation in H as []. split.
+  now apply forward_simulation_preservation.
+  apply backward_simulation_preservation in H0.
+  intros b ?. apply H0 in H1 as [b' []]. rewrite <- atomic_behaviors in H1. now exists b'. apply WBT.
+Qed.
+
+Theorem cstrategy_to_asm_preservation:
+  forall p tp,
+  compiler p = OK tp ->
+  forward_preservation (Cstrategy.semantics p) (Asm.semantics tp) /\
+  backward_preservation (Cstrategy.semantics p) (Asm.semantics tp).
+Proof.
+  intros. unfold compiler in H. simpl in H.
+  destruct (transf_c_to_cminor p) as [p2|e] eqn:P2; simpl in H; try discriminate.
+  destruct (loop_compiler p2) as [p3|e] eqn:P3; simpl in H; try discriminate.
+  destruct (transf_cminor_to_asm p3) as [p4|e] eqn:P4; simpl in H; try discriminate.
+  injection H; intros; subst. split.
+  * eapply forward_preservation_trans.
+    apply cstrategy_to_cminor_preservation; eauto.
+    eapply forward_preservation_trans.
+    apply loop_compiler_preservation. eauto.
+    apply forward_simulation_preservation, cminor_to_asm_program_simulation. eauto.
+  * eapply backward_preservation_trans.
+    apply cstrategy_to_cminor_preservation; eauto.
+    eapply backward_preservation_trans.
+    apply loop_compiler_preservation. eauto.
+    apply backward_simulation_preservation, cminor_to_asm_program_simulation. eauto.
+Qed.
+
+Theorem cstrategy_refinement:
+  forall p tp,
+  compiler p = OK tp ->
+  (forall beh, not_wrong beh ->
+     program_behaves (Cstrategy.semantics p) beh -> program_behaves (Asm.semantics tp) beh) /\
+  (forall beh,
+    (forall beh', program_behaves (Cstrategy.semantics p) beh' -> not_wrong beh') ->
+    program_behaves (Asm.semantics tp) beh -> program_behaves (Cstrategy.semantics p) beh).
+Proof.
+  split; intros.
+  * eapply cstrategy_to_asm_preservation in H1 as [b []]; eauto.
+    destruct H2 as [|[t[]]]; now subst.
+  * eapply cstrategy_to_asm_preservation in H1 as [b []]; eauto.
+    destruct H2 as [|[t[]]]. now subst. apply H0 in H1. now subst.
 Qed.
 
 (** We can also use the alternate big-step semantics for [Cstrategy]
   to establish behaviors of the generated assembly code. *)
 
 Theorem bigstep_cstrategy_preservation:
-  forall p tp,
-  transf_c_program p = OK tp ->
-  (forall t r,
-     Cstrategy.bigstep_program_terminates p t r ->
-     program_behaves (Asm.semantics tp) (Terminates t r))
-/\(forall T,
-     Cstrategy.bigstep_program_diverges p T ->
-       program_behaves (Asm.semantics tp) (Reacts T)
-    \/ exists t, program_behaves (Asm.semantics tp) (Diverges t) /\ traceinf_prefix t T).
+  forall p tp beh,
+  compiler p = OK tp ->
+  behaves (Cstrategy.bigstep_semantics p) beh ->
+  exists beh',
+    behavior_improves beh beh' /\ program_behaves (Asm.semantics tp) beh'.
 Proof.
-  intuition.
-  apply transf_cstrategy_program_preservation with p; auto. red; auto.
-  apply behavior_bigstep_terminates with (Cstrategy.bigstep_semantics p); auto.
-  apply Cstrategy.bigstep_semantics_sound.
-  exploit (behavior_bigstep_diverges (Cstrategy.bigstep_semantics_sound p)). eassumption.
-  intros [A | [t [A B]]].
-  left. apply transf_cstrategy_program_preservation with p; auto. red; auto.
-  right; exists t; split; auto. apply transf_cstrategy_program_preservation with p; auto. red; auto.
+  intros. eapply sound_forward_preserved in H0 as [beh' [t']]. 2: apply Cstrategy.bigstep_sound.
+  eapply cstrategy_to_asm_preservation in H as [b]; eauto.
+  apply b in t' as [beh'' []]. exists beh''. split; auto. eapply behavior_improves_trans; eauto.
 Qed.
 
 (** * Satisfaction of specifications *)
@@ -156,15 +164,15 @@ Definition safety_enforcing_specification (spec: specification): Prop :=
   any such specification that is satisfied by the source C program is
   always satisfied by the generated assembly code. *)
 
-Theorem transf_c_program_preserves_spec:
+Theorem compiler_preserves_spec:
   forall p tp spec,
-  transf_c_program p = OK tp ->
+  compiler p = OK tp ->
   safety_enforcing_specification spec ->
   c_program_satisfies_spec p spec ->
   asm_program_satisfies_spec tp spec.
 Proof.
   intros p tp spec TRANSF SES CSAT; red; intros beh AEXEC.
-  exploit transf_c_program_preservation; eauto. intros (beh' & CEXEC & IMPR).
+  exploit compiler_backward_preservation; eauto. intros (beh' & CEXEC & IMPR).
   apply CSAT in CEXEC. destruct IMPR as [EQ | [t [A B]]].
 - congruence.
 - subst beh'. apply SES in CEXEC. contradiction. 
@@ -185,14 +193,14 @@ Definition c_program_has_initial_trace (p: Csyntax.program) (t: trace): Prop :=
 Definition asm_program_has_initial_trace (p: Asm.program) (t: trace): Prop :=
   forall beh, program_behaves (Asm.semantics p) beh -> behavior_prefix t beh.
 
-Theorem transf_c_program_preserves_initial_trace:
+Theorem compiler_preserves_initial_trace:
   forall p tp t,
-  transf_c_program p = OK tp ->
+  compiler p = OK tp ->
   c_program_has_initial_trace p t ->
   asm_program_has_initial_trace tp t.
 Proof.
   intros p tp t TRANSF CTRACE; red; intros beh AEXEC.
-  exploit transf_c_program_preservation; eauto. intros (beh' & CEXEC & IMPR).
+  exploit compiler_backward_preservation; eauto. intros (beh' & CEXEC & IMPR).
   apply CTRACE in CEXEC. destruct IMPR as [EQ | [t' [A B]]].
 - congruence.
 - destruct CEXEC as (beh1' & EQ').
@@ -206,6 +214,7 @@ Qed.
 (** The results above were given in terms of whole-program compilation.
     They also extend to separate compilation followed by linking. *)
 
+
 Section SEPARATE_COMPILATION.
 
 (** The source: a list of C compilation units *)
@@ -214,7 +223,7 @@ Variable c_units: nlist Csyntax.program.
 (** The compiled code: a list of Asm compilation units, obtained by separate compilation *)
 Variable asm_units: nlist Asm.program.
 Hypothesis separate_compilation_succeeds: 
-  nlist_forall2 (fun cu tcu => transf_c_program cu = OK tcu) c_units asm_units.
+  nlist_forall2 (fun cu tcu => compiler cu = OK tcu) c_units asm_units.
 
 (** We assume that the source C compilation units can be linked together
     to obtain a monolithic C program [c_program]. *)
@@ -228,7 +237,7 @@ Proof.
   destruct (link_list asm_units) eqn:E. 
 - exists p; auto.
 - exfalso. 
-  exploit separate_transf_c_program_correct; eauto. intros (a & P & Q).
+  exploit separate_compiler_preservation; eauto. intros (a & P & Q).
   congruence.
 Qed.
 
@@ -241,24 +250,23 @@ Let compiled_linking: link_list asm_units = Some asm_program := proj2_sig compil
   First, every behavior of [asm_program] improves upon one of the possible
   behaviors of [c_program]. *)
 
-Theorem separate_transf_c_program_preservation:
+Theorem separate_compiler_preservation:
   forall beh,
   program_behaves (Asm.semantics asm_program) beh ->
   exists beh', program_behaves (Csem.semantics c_program) beh' /\ behavior_improves beh' beh.
 Proof.
-  intros. exploit separate_transf_c_program_correct; eauto. intros (a & P & Q).
-  assert (a = asm_program) by congruence. subst a. 
-  eapply backward_simulation_behavior_improves; eauto.
+  intros. exploit separate_compiler_preservation; eauto. intros (a & P & Q).
+  assert (a = asm_program) by congruence. subst a. auto.
 Qed.
 
 (** As a corollary, if [c_program] is free of undefined behaviors, 
   the behavior of [asm_program] is one of the possible behaviors of [c_program]. *)
 
-Theorem separate_transf_c_program_is_refinement:
+Theorem separate_compiler_is_refinement:
   (forall beh, program_behaves (Csem.semantics c_program) beh -> not_wrong beh) ->
   (forall beh, program_behaves (Asm.semantics asm_program) beh -> program_behaves (Csem.semantics c_program) beh).
 Proof.
-  intros. exploit separate_transf_c_program_preservation; eauto. intros (beh' & P & Q).
+  intros. exploit separate_compiler_preservation; eauto. intros (beh' & P & Q).
   assert (not_wrong beh') by auto.
   inv Q.
 - auto.
@@ -269,30 +277,30 @@ Qed.
   then all executions of [asm_program] also satisfy the specification, provided
   the specification is of the safety-enforcing kind. *)
 
-Theorem separate_transf_c_program_preserves_spec:
+Theorem separate_compiler_preserves_spec:
   forall spec,
   safety_enforcing_specification spec ->
   c_program_satisfies_spec c_program spec ->
   asm_program_satisfies_spec asm_program spec.
 Proof.
   intros spec SES CSAT; red; intros beh AEXEC.
-  exploit separate_transf_c_program_preservation; eauto. intros (beh' & CEXEC & IMPR).
+  exploit separate_compiler_preservation; eauto. intros (beh' & CEXEC & IMPR).
   apply CSAT in CEXEC. destruct IMPR as [EQ | [t [A B]]].
 - congruence.
 - subst beh'. apply SES in CEXEC. contradiction. 
 Qed.
 
-(** As another corollary of [separate_transf_c_program_preservation],
+(** As another corollary of [separate_compiler_preservation],
   if all executions of [c_program] have a trace [t] as initial trace,
   so do all executions of [asm_program]. *)
 
-Theorem separate_transf_c_program_preserves_initial_trace:
+Theorem separate_compiler_preserves_initial_trace:
   forall t,
   c_program_has_initial_trace c_program t ->
   asm_program_has_initial_trace asm_program t.
 Proof.
   intros t CTRACE; red; intros beh AEXEC.
-  exploit separate_transf_c_program_preservation; eauto. intros (beh' & CEXEC & IMPR).
+  exploit separate_compiler_preservation; eauto. intros (beh' & CEXEC & IMPR).
   apply CTRACE in CEXEC. destruct IMPR as [EQ | [t' [A B]]].
 - congruence.
 - destruct CEXEC as (beh1' & EQ').

@@ -111,21 +111,24 @@ Extract Constant Compopts.optim_CSE =>
   "fun _ -> !Clflags.option_fcse".
 Extract Constant Compopts.optim_redundancy =>
   "fun _ -> !Clflags.option_fredundancy".
+Extract Constant Compopts.optim_loop =>
+  "fun _ -> !Clflags.option_floop".
 Extract Constant Compopts.thumb =>
   "fun _ -> !Clflags.option_mthumb".
 Extract Constant Compopts.debug =>
   "fun _ -> !Clflags.option_g".
 
 (* Compiler *)
-Extract Constant Compiler.print_Clight => "PrintClight.print_if".
-Extract Constant Compiler.print_Cminor => "PrintCminor.print_if".
-Extract Constant Compiler.print_RTL => "PrintRTL.print_if".
-Extract Constant Compiler.print_LTL => "PrintLTL.print_if".
-Extract Constant Compiler.print_Mach => "PrintMach.print_if".
-Extract Constant Compiler.print => "fun (f: 'a -> unit) (x: 'a) -> f x; x".
-Extract Constant Compiler.time  => "Timing.time_coq".
+Extract Constant CompilerSmallstep.print_Clight => "PrintClight.print_if".
+Extract Constant CompilerSmallstep.print_Cminor => "PrintCminor.print_if".
+Extract Constant Compiler.print_CminLoop => "PrintCminLoop.print_if".
+Extract Constant CompilerSmallstep.print_RTL => "PrintRTL.print_if".
+Extract Constant CompilerSmallstep.print_LTL => "PrintLTL.print_if".
+Extract Constant CompilerSmallstep.print_Mach => "PrintMach.print_if".
+Extract Constant CompilerSmallstep.print => "fun (f: 'a -> unit) (x: 'a) -> f x; x".
+Extract Constant CompilerSmallstep.time  => "Timing.time_coq".
 
-(*Extraction Inline Compiler.apply_total Compiler.apply_partial.*)
+(*Extraction Inline CompilerSmallstep.apply_total CompilerSmallstep.apply_partial.*)
 
 (* Cabs *)
 Extract Constant Cabs.loc =>
@@ -152,7 +155,7 @@ Set Extraction AccessOpaque.
 Cd "extraction".
 
 Separate Extraction
-   Compiler.transf_c_program Compiler.transf_cminor_program
+   Compiler.compiler
    Cexec.do_initial_state Cexec.do_step Cexec.at_final_state
    Ctypes.merge_attributes Ctypes.remove_attributes 
    Ctypes.build_composite_env Ctypes.layout_struct

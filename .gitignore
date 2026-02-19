@@ -75,6 +75,7 @@
 # MacOS metadata
 .DS_Store
 # Test generated data
+/test
 /test/export/clight/*.v
 /test/export/csyntax/*.v
 # Coq caches

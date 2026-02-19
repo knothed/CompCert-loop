@@ -26,6 +26,7 @@ Require Import Memory.
 Require Import Events.
 Require Import Globalenvs.
 Require Import Smallstep.
+Require Import Bigstep.
 Require Import Ctypes.
 Require Import Cop.
 Require Import Clight.
@@ -269,8 +270,10 @@ Inductive bigstep_program_diverges (p: program): traceinf -> Prop :=
       evalinf_funcall ge m0 f nil t ->
       bigstep_program_diverges p t.
 
+(*
 Definition bigstep_semantics (p: program) :=
   Bigstep_semantics (bigstep_program_terminates p) (bigstep_program_diverges p).
+*)
 
 (** * Implication from big-step semantics to transition semantics *)
 
@@ -577,6 +580,8 @@ Proof.
   traceEq.
 Qed.
 
+(*
+
 Theorem bigstep_semantics_sound:
   bigstep_sound (bigstep_semantics prog) (semantics_fe prog).
 Proof.
@@ -594,9 +599,13 @@ Proof.
   eapply evalinf_funcall_forever; eauto.
 Qed.
 
+*)
+
 End BIGSTEP_TO_TRANSITIONS.
 
 End CLIGHT.
+
+(*
 
 (** ** Specialized definitions for Clight1 and Clight2 *)
 
@@ -633,3 +642,5 @@ Theorem bigstep_semantics_sound: forall prog,
 Proof (bigstep_semantics_sound function_entry2).
 
 End Clight2.
+
+*)

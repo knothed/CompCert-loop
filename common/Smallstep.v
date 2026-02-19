@@ -22,6 +22,7 @@
 
 Require Import Relations.
 Require Import Wellfounded.
+Require Import Equality.
 Require Import Coqlib.
 Require Import Events.
 Require Import Globalenvs.
@@ -398,12 +399,28 @@ Proof.
   subst. econstructor; eauto.
 Qed.
 
+Lemma forever_forever_plus:
+  forall ge s T, forever ge s T -> forever_plus ge s T.
+Proof.
+  cofix HYP.
+  intros. inv H. econstructor; eauto. now apply plus_one.
+Qed.
+
 (** Infinitely many silent transitions *)
 
 CoInductive forever_silent (ge: genv): state -> Prop :=
   | forever_silent_intro: forall s1 s2,
       step ge s1 E0 s2 -> forever_silent ge s2 ->
       forever_silent ge s1.
+
+Lemma star_forever_silent:
+  forall ge s1 s2,
+  star ge s1 E0 s2 -> forever_silent ge s2 ->
+  forever_silent ge s1.
+Proof.
+  intros. dependent induction H. auto.
+  symmetry in H1. apply Eapp_E0_inv in H1 as []; subst. apply IHstar in H2; auto. econstructor; eauto.
+Qed.
 
 (** An alternate definition. *)
 
@@ -450,6 +467,19 @@ Proof.
   apply COINDHYP with a'; auto.
 Qed.
 
+Lemma forever_silent_forever: forall ge s T,
+  forever_silent ge s -> forever ge s T.
+Proof.
+  cofix HYP. intros. inv H. replace T with (E0 *** T) by traceEq. econstructor; eauto.
+Qed.
+
+Lemma forever_silent_forever_star: forall ge s1 s2 t T,
+  traceinf_prefix t T ->
+  star ge s1 t s2 -> forever_silent ge s2 -> forever ge s1 T.
+Proof.
+  intros. inv H. eapply star_forever; eauto. eapply forever_silent_forever; eauto.
+Qed.
+
 (** Infinitely many non-silent transitions *)
 
 CoInductive forever_reactive (ge: genv): state -> traceinf -> Prop :=
@@ -466,6 +496,14 @@ Proof.
   eapply star_trans; eauto.
   red; intro. exploit Eapp_E0_inv; eauto. intros [P Q]. contradiction.
   auto.
+Qed.
+
+Lemma forever_reactive_forever: forall ge s T,
+  forever_reactive ge s T -> forever ge s T.
+Proof.
+  intros. enough (forever_plus ge s T) by now apply forever_plus_forever.
+  generalize dependent s. generalize dependent T.
+  cofix HYP. intros. inv H. inv H0. congruence. econstructor; eauto. econstructor; eauto.
 Qed.
 
 (** [eventually n s P]: all transition sequences of length [n] starting from [s]
@@ -557,6 +595,7 @@ Declare Scope smallstep_scope.
 Notation " 'Step' L " := (step L (globalenv L)) (at level 1) : smallstep_scope.
 Notation " 'Star' L " := (star (step L) (globalenv L)) (at level 1) : smallstep_scope.
 Notation " 'Plus' L " := (plus (step L) (globalenv L)) (at level 1) : smallstep_scope.
+Notation " 'Forever' L " := (forever (step L) (globalenv L)) (at level 1) : smallstep_scope.
 Notation " 'Forever_silent' L " := (forever_silent (step L) (globalenv L)) (at level 1) : smallstep_scope.
 Notation " 'Forever_reactive' L " := (forever_reactive (step L) (globalenv L)) (at level 1) : smallstep_scope.
 Notation " 'Nostep' L " := (nostep (step L) (globalenv L)) (at level 1) : smallstep_scope.
@@ -2162,28 +2201,3 @@ Proof.
 (* single-event *)
   red. intros. inv H0; simpl; lia.
 Qed.
-
-(** * Connections with big-step semantics *)
-
-(** The general form of a big-step semantics *)
-
-Record bigstep_semantics : Type :=
-  Bigstep_semantics {
-    bigstep_terminates: trace -> int -> Prop;
-    bigstep_diverges: traceinf -> Prop
-  }.
-
-(** Soundness with respect to a small-step semantics *)
-
-Record bigstep_sound (B: bigstep_semantics) (L: semantics) : Prop :=
-  Bigstep_sound {
-    bigstep_terminates_sound:
-      forall t r,
-      bigstep_terminates B t r ->
-      exists s1, exists s2, initial_state L s1 /\ Star L s1 t s2 /\ final_state L s2 r;
-    bigstep_diverges_sound:
-      forall T,
-      bigstep_diverges B T ->
-      exists s1, initial_state L s1 /\ forever (step L) (globalenv L) s1 T
-}.
-

@@ -857,6 +857,13 @@ Proof.
   intuition congruence.
 Qed.
 
+Lemma list_app_not_equal:
+  forall (A: Type) (l1 l2: list A) (x: A),
+  l1 <> l1 ++ x :: l2.
+Proof.
+  intros. intro. apply (f_equal (@length A)) in H. rewrite app_length in H. simpl in H. lia.
+Qed.
+
 (** Folding a function over a list *)
 
 Section LIST_FOLD.
@@ -1393,4 +1400,46 @@ Lemma nlist_forall2_imply:
   nlist_forall2 P2 l1 l2.
 Proof.
   induction 1; simpl; intros; constructor; auto.
+Qed.
+
+(** * Induction schemes *)
+
+Local Open Scope nat.
+
+Lemma strong_rect (P: nat -> Type):
+  (forall m, (forall k : nat, k < m -> P k) -> P m) ->
+  forall n, P n.
+Proof.
+  intros H n0; enough (H0: forall p, p <= n0 -> P p).
+    - apply H0, le_n. 
+    - induction n0.
+    + intros. replace p with 0 by lia. apply H. lia.
+    + intros. apply H. intros. apply IHn0. lia.
+Qed.
+
+Lemma strong_ind (P: nat -> Prop):
+  (forall m, (forall k : nat, k < m -> P k) -> P m) ->
+  forall n, P n.
+Proof.
+  apply strong_rect.
+Qed.
+
+Lemma list_length_ind: forall {A} xs
+  (P: list A -> Prop)
+  (H: forall xs, (forall l, length l < length xs -> P l) -> P xs),
+  P xs.
+Proof.
+  intros.
+  enough (I: forall l, length l <= length xs -> P l) by (apply I; lia).
+  induction xs; intros; apply H; intros.
+  - inv H0. lia.
+  - apply IHxs. simpl in H0. lia.
+Qed.
+
+Lemma list_rev_ind: forall {A} (P : list A -> Prop),
+  P nil ->
+  (forall (a : A) (l : list A), P l -> P (l ++ a :: nil)) ->
+  forall l, P l.
+Proof.
+  intros. replace l with (rev (rev l)) by apply rev_involutive. induction (rev l); simpl; auto.
 Qed.

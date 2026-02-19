@@ -241,14 +241,8 @@ let rec print_stmt p s =
                 (name_of_external ef)
                 print_expr_list (true, el)
 	        print_sig (ef_sig ef)
-  | Sseq(s1,s2) when just_skips s1 && just_skips s2 ->
-      ()
-  | Sseq(s1, s2) when just_skips s1 ->
-      print_stmt p s2
-  | Sseq(s1, s2) when just_skips s2 ->
-      print_stmt p s1
   | Sseq(s1, s2) ->
-      fprintf p "%a@ %a" print_stmt s1 print_stmt s2
+      fprintf p "(%a@; %a)" print_stmt s1 print_stmt s2
   | Sifthenelse(e, s1, Sskip) ->
       fprintf p "@[<v 2>if (%a) {@ %a@;<0 -2>}@]"
               print_expr e
@@ -364,10 +358,10 @@ let print_program p prog =
 
 let destination : string option ref = ref None
 
-let print_if prog =
+let print_if passno prog =
   match !destination with
   | None -> ()
   | Some f ->
-      let oc = open_out f in
+      let oc = open_out (f ^ "." ^ Z.to_string passno) in
       print_program (formatter_of_out_channel oc) prog;
       close_out oc

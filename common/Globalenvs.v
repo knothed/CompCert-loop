@@ -132,6 +132,12 @@ Definition equiv (se1 se2: t) : Prop :=
   /\ (forall id, public_symbol se2 id = public_symbol se1 id)
   /\ (forall b, block_is_volatile se2 b = block_is_volatile se1 b).
 
+Lemma equiv_sym: forall se1 se2,
+  equiv se1 se2 -> equiv se2 se1.
+Proof.
+  now unfold equiv.
+Qed.
+
 End Senv.
 
 Module Genv.
@@ -1729,6 +1735,16 @@ Proof.
   exists y; auto.
 Qed.
 
+Theorem find_def_inv_match:
+  forall b tg,
+  find_def (globalenv tp) b = Some tg ->
+  exists g,
+  find_def (globalenv p) b = Some g /\ match_globdef match_fundef match_varinfo ctx g tg.
+Proof.
+  intros. generalize (find_def_match_2 b). rewrite H; intros R; inv R.
+  exists x; auto.
+Qed.
+
 Theorem find_funct_ptr_match:
   forall b f,
   find_funct_ptr (globalenv p) b = Some f ->
@@ -1738,6 +1754,17 @@ Proof.
   intros. rewrite find_funct_ptr_iff in *. apply find_def_match in H.
   destruct H as (tg & P & Q). inv Q.
   exists ctx', f2; intuition auto. apply find_funct_ptr_iff; auto.
+Qed.
+
+Theorem find_funct_ptr_inv_match:
+  forall b tf,
+  find_funct_ptr (globalenv tp) b = Some tf ->
+  exists cunit f,
+  find_funct_ptr (globalenv p) b = Some f /\ match_fundef cunit f tf /\ linkorder cunit ctx.
+Proof.
+  intros. rewrite find_funct_ptr_iff in *. apply find_def_inv_match in H.
+  destruct H as (tg & P & Q). inv Q.
+  exists ctx', f1; intuition auto. apply find_funct_ptr_iff; auto.
 Qed.
 
 Theorem find_funct_match:
@@ -1750,6 +1777,27 @@ Proof.
   rewrite find_funct_find_funct_ptr in H.
   rewrite find_funct_find_funct_ptr.
   apply find_funct_ptr_match. auto.
+Qed.
+
+Theorem find_funct_inv_match:
+  forall v tf,
+  find_funct (globalenv tp) v = Some tf ->
+  exists cunit f,
+  find_funct (globalenv p) v = Some f /\ match_fundef cunit f tf /\ linkorder cunit ctx.
+Proof.
+  intros. exploit find_funct_inv; eauto. intros [b EQ]. subst v.
+  rewrite find_funct_find_funct_ptr in H.
+  rewrite find_funct_find_funct_ptr.
+  apply find_funct_ptr_inv_match. auto.
+Qed.
+
+Theorem find_funct_none_match:
+  forall v,
+  Genv.find_funct (globalenv p) v = None ->
+  Genv.find_funct (globalenv tp) v = None.
+Proof.
+  intros. destruct find_funct eqn:?. congruence. destruct find_funct eqn:? in |- *. 2: congruence.
+  apply find_funct_inv_match in Heqo0 as [? [? []]]; congruence.
 Qed.
 
 Theorem find_var_info_match:
@@ -1849,6 +1897,16 @@ Proof.
   intros (cu & tf & P & Q & R); exists tf; auto.
 Qed.
 
+Theorem find_funct_ptr_inv_transf_partial:
+  forall b tf,
+  find_funct_ptr (globalenv tp) b = Some tf ->
+  exists f,
+  find_funct_ptr (globalenv p) b = Some f /\ transf f = OK tf.
+Proof.
+  intros. exploit (find_funct_ptr_inv_match progmatch); eauto.
+  intros (cu & f & P & Q & R); exists f; auto.
+Qed.
+
 Theorem find_funct_transf_partial:
   forall v f,
   find_funct (globalenv p) v = Some f ->
@@ -1857,6 +1915,24 @@ Theorem find_funct_transf_partial:
 Proof.
   intros. exploit (find_funct_match progmatch); eauto.
   intros (cu & tf & P & Q & R); exists tf; auto.
+Qed.
+
+Theorem find_funct_inv_transf_partial:
+  forall v tf,
+  find_funct (globalenv tp) v = Some tf ->
+  exists f,
+  find_funct (globalenv p) v = Some f /\ transf f = OK tf.
+Proof.
+  intros. exploit (find_funct_inv_match progmatch); eauto.
+  intros (cu & f & P & Q & R); exists f; auto.
+Qed.
+
+Theorem find_funct_none_transf_partial:
+  forall v,
+  Genv.find_funct (globalenv p) v = None ->
+  Genv.find_funct (globalenv tp) v = None.
+Proof.
+  intros. exploit (find_funct_none_match progmatch); eauto.
 Qed.
 
 Theorem find_symbol_transf_partial:
@@ -1897,6 +1973,16 @@ Proof.
   intros (cu & tf & P & Q & R). congruence.
 Qed.
 
+Theorem find_funct_ptr_inv_transf:
+  forall b tf,
+  find_funct_ptr (globalenv tp) b = Some tf ->
+  exists f,
+  find_funct_ptr (globalenv p) b = Some f /\ tf = transf f.
+Proof.
+  intros. exploit (find_funct_ptr_inv_match progmatch); eauto.
+  intros (cu & f & P & Q & R); exists f; auto.
+Qed.
+
 Theorem find_funct_transf:
   forall v f,
   find_funct (globalenv p) v = Some f ->
@@ -1904,6 +1990,24 @@ Theorem find_funct_transf:
 Proof.
   intros. exploit (find_funct_match progmatch); eauto.
   intros (cu & tf & P & Q & R). congruence.
+Qed.
+
+Theorem find_funct_inv_transf:
+  forall v tf,
+  find_funct (globalenv tp) v = Some tf ->
+  exists f,
+  find_funct (globalenv p) v = Some f /\ tf = transf f.
+Proof.
+  intros. exploit (find_funct_inv_match progmatch); eauto.
+  intros (cu & f & P & Q & R); exists f; auto.
+Qed.
+
+Theorem find_funct_none_transf:
+  forall v,
+  Genv.find_funct (globalenv p) v = None ->
+  Genv.find_funct (globalenv tp) v = None.
+Proof.
+  intros. exploit (find_funct_none_match progmatch); eauto.
 Qed.
 
 Theorem find_symbol_transf:

@@ -25,6 +25,7 @@ Require Import Events.
 Require Import Globalenvs.
 Require Import Smallstep.
 Require Import Behaviors.
+Require Import SmallstepBehaviors.
 
 (** * Deterministic worlds *)
 
@@ -547,5 +548,3 @@ Proof.
 Qed.
 
 End WORLD_SEM.
-
-
