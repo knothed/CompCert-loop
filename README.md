@@ -72,7 +72,7 @@ We have implemented and verified the following loop transformations:
 * Semantics (in `common/`):
     * `Semantics.v` introduces behavioral semantics, its properties and preservation theorems.
     * `SemanticsSmallBig.v` puts small-step and big-step semantics into the behavioral framework.
-    * `Tracex.v` contains our general (finite+infinite) trace, and `Foreverx.v` introduces the general-trace divergence judgment for small-step semantics.
+    * `Tracex.v` contains our general (finite+infinite) trace, and `Foreverx.v` introduces the general-trace divergence judgment for small-step semantics and shows a form of equivalence between `forever` and `foreverx`.
     * `Determinacy.v` contains useful lemmas for reasoning about determinate small-step executions.
 * Compiler (in `driver/`):
     * `CompilerSmallstep.v` is the original small-step compiler pipeline, but split up into two parts: `C -> Cminor` and `Cminor -> Asm`.
@@ -82,6 +82,7 @@ We have implemented and verified the following loop transformations:
 * CminLoop (in `backend/`):
     * `CminLoop.v` introduces CminLoop, a version of Cminor that does not contain goto statements.
     * `CminLoopBigSmallEquiv.v` establishes equivalence between small-step and big-step CminLoop by proving soundness and completeness.
+    * `CminLoopOldDivergence.v` shows a form of equivalence between the old and new notions of big-step divergence. This is not required for the development.
     * `DropGotos.v` converts between Cminor and CminLoop in a small-step fashion.
 * Loop Transformations (in `backend/`):
     * `CminLoopInvert.v`, `CminLoopUnroll.v`, `CminLoopUnswitching.v` and `CminLoopWhileTrue.v` contain the transformations as described above.
