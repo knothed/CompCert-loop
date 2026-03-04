@@ -1,7 +1,7 @@
 # CompCert-loop
 
 A fork of the formally-verified C compiler, extending it with some loop optimizations.
-This is the accompanying development to our paper [Combining Small-Step and Big-Step Semantics to Verify Loop Transformations](todo).
+This is the accompanying development to our paper [Combining Small-Step and Big-Step Semantics to Verify Loop Optimizations](https://arxiv.org/abs/2602.19868).
 
 Build and install CompCert-loop using `./configure x86_64-linux && make && sudo make install`. It may take some time, especially on the file `CminLoopRemoveSkips.v`.
 We tested our development with `coq 8.17.1` and `OCaml 4.14.1`.
